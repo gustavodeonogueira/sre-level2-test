@@ -1,0 +1,39 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.app.name }}-db-backup
+  labels:
+    {{- include "sre-app.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: sre-backup:1.0.0
+              env:
+                - name: DB_HOST
+                  value: {{ .Values.database.host | quote }}
+                - name: DB_NAME
+                  value: {{ .Values.database.name | quote }}
+                - name: DB_USER
+                  value: {{ .Values.database.user | quote }}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: sre-app-mysql
+                      key: mysql-password
+                - name: RETENTION_DAYS
+                  value: {{ .Values.backup.retentionDays | quote }}
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: {{ .Values.app.name }}-backup-pvc
+{{- end }}
